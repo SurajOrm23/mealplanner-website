@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The 15-Minute Meal Prep | Interactive Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Georgia', serif; background-color: #F7F5F2; color: #3A5A40; }
+        .bg-primary-light { background-color: #FEFAE0; }
+        .bg-primary-dark { background-color: #3A5A40; }
+        .text-primary-dark { color: #3A5A40; }
+        .text-primary-accent { color: #D4A373; }
+        .border-primary-accent { border-color: #D4A373; }
+        .btn { padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: bold; transition: all 0.3s; }
+        .btn-primary { background-color: #3A5A40; color: #FEFAE0; }
+        .btn-primary:hover { background-color: #4d7855; }
+        .btn-secondary { background-color: #D4A373; color: #FEFAE0; }
+        .btn-secondary:hover { background-color: #e0b48a; }
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            z-index: 40;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 50;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 350px;
+        }
+        @media (min-width: 768px) {
+            .chart-container { height: 350px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header class="bg-primary-light shadow-md sticky top-0 z-30">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-primary-dark">15-Minute Meal Prep</h1>
+            <div class="hidden md:flex space-x-6">
+                <a href="#explorer" class="text-primary-dark hover:text-primary-accent">Recipes</a>
+                <a href="#plan" class="text-primary-dark hover:text-primary-accent">My Plan</a>
+                <a href="#shopping-list" class="text-primary-dark hover:text-primary-accent">Shopping List</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <section class="text-center mb-16">
+            <h2 class="text-4xl font-bold text-primary-dark mb-4">Reclaim Your Time & Your Health</h2>
+            <p class="max-w-3xl mx-auto text-lg text-gray-600">
+                Welcome to your interactive meal planner. Stop trading nutritious, home-cooked meals for expensive takeout. Use this tool to discover delicious 15-minute prep recipes, build your weekly plan, and generate a shopping list in seconds.
+            </p>
+        </section>
+
+        <section id="explorer" class="mb-16">
+            <h3 class="text-3xl font-bold text-center text-primary-dark mb-8">Recipe Explorer</h3>
+            <div id="filter-buttons" class="flex justify-center flex-wrap gap-4 mb-8">
+                <button class="btn btn-primary" onclick="filterRecipes('all')">All</button>
+                <button class="btn btn-secondary" onclick="filterRecipes('Breakfast')">Breakfast</button>
+                <button class="btn btn-secondary" onclick="filterRecipes('Lunch')">Lunch</button>
+                <button class="btn btn-secondary" onclick="filterRecipes('Dinner')">Dinner</button>
+                <button class="btn btn-secondary" onclick="filterRecipes('Snack')">Snack</button>
+            </div>
+            <div id="recipe-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            </div>
+        </section>
+
+        <section id="plan" class="mb-16 bg-primary-light p-8 rounded-lg shadow-lg">
+            <h3 class="text-3xl font-bold text-center text-primary-dark mb-8">My Weekly Plan</h3>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                <div>
+                    <div id="plan-items" class="space-y-4">
+                        <p class="text-gray-500 italic">Your plan is empty. Add recipes from the explorer above!</p>
+                    </div>
+                     <button id="generate-list-btn" class="btn btn-primary mt-8 w-full" onclick="generateShoppingList()">Generate Shopping List</button>
+                </div>
+                <div>
+                    <h4 class="text-xl font-bold text-center text-primary-dark mb-4">Average Nutrition Overview</h4>
+                     <div class="chart-container">
+                         <canvas id="nutrition-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="shopping-list" class="mb-16">
+            <h3 class="text-3xl font-bold text-center text-primary-dark mb-8">Consolidated Shopping List</h3>
+            <div id="shopping-list-container" class="bg-white p-8 rounded-lg shadow-inner text-gray-700">
+                 <p class="text-gray-500 italic">Generate your shopping list from "My Weekly Plan" to see it here.</p>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-backdrop" class="modal-backdrop" onclick="closeModal()"></div>
+    <div id="recipe-modal" class="modal w-11/12 md:max-w-3xl max-h-[90vh] bg-white rounded-lg shadow-2xl overflow-y-auto">
+        <div id="modal-content" class="p-8">
+        </div>
+    </div>
+
+<script>
+const recipes = [
+    {
+        id: 1,
+        title: "Avocado Toast Power-Up Kit",
+        category: "Breakfast",
+        imageSrc: "https://placehold.co/500x700/C1DAB9/3A5A40?text=Avocado+Toast+Kit",
+        prepTime: 10, cookTime: 0, servings: 5,
+        description: "Prep your toppings for the perfect avocado toast in seconds each morning.",
+        ingredients: [
+            { item: "Hard-boiled eggs", quantity: 5, unit: "" },
+            { item: "Cherry tomatoes, halved", quantity: 1, unit: "cup" },
+            { item: "Red onion, finely diced", quantity: 0.5, unit: "" },
+            { item: "Feta cheese, crumbled", quantity: 0.25, unit: "cup" },
+            { item: "Cilantro, chopped", quantity: 0.25, unit: "cup" },
+            { item: "Lemon", quantity: 1, unit: "" },
+            { item: "Red pepper flakes", quantity: 1, unit: "tsp" },
+            { item: "Avocados", quantity: 5, unit: "" },
+            { item: "Whole-grain bread", quantity: 1, unit: "loaf" }
+        ],
+        instructions: [
+            "In separate small containers or one large sectioned container, prep your toppings: Slice the hard-boiled eggs. Combine the diced red onion and cilantro. Halve the cherry tomatoes. Portion out the feta.",
+            "Store the lemon wedges and red pepper flakes in small containers.",
+            "Morning Of: Toast your bread. Mash 1/2 an avocado on top. Add your prepped egg, tomatoes, onion mix, feta, a squeeze of lemon, and a sprinkle of red pepper flakes."
+        ],
+        nutrition: { calories: 120, protein: 8, carbs: 4, fat: 8 }
+    },
+    {
+        id: 2,
+        title: "Greek Yogurt Parfait Jars",
+        category: "Breakfast",
+        imageSrc: "https://placehold.co/500x700/D4A373/FEFAE0?text=Yogurt+Parfait+Jars",
+        prepTime: 15, cookTime: 0, servings: 4,
+        description: "A layered, protein-packed breakfast that feels like a treat.",
+        ingredients: [
+            { item: "Plain Greek yogurt", quantity: 4, unit: "cups" },
+            { item: "Mixed berries", quantity: 2, unit: "cups" },
+            { item: "Low-sugar granola", quantity: 1, unit: "cup" },
+            { item: "Chia seeds", quantity: 4, unit: "tbsp" },
+            { item: "Honey or maple syrup", quantity: 4, unit: "tsp" }
+        ],
+        instructions: [
+            "In a small bowl, mix the Greek yogurt with chia seeds and honey, if using.",
+            "Create layers in each jar: Start with a layer of the yogurt mixture, followed by a layer of berries, and then a sprinkle of granola.",
+            "Repeat the layers until the jar is full, finishing with berries and granola on top.",
+            "Seal the jars and refrigerate for up to 4 days. For crunchy granola, pack it separately."
+        ],
+        nutrition: { calories: 380, protein: 25, carbs: 40, fat: 13 }
+    },
+    {
+        id: 3,
+        title: "Spicy Chicken & Quinoa Bowls",
+        category: "Lunch",
+        imageSrc: "https://placehold.co/500x700/CCD5AE/3A5A40?text=Chicken+Quinoa+Bowl",
+        prepTime: 15, cookTime: 20, servings: 4,
+        description: "A vibrant, protein-rich bowl with a spicy kick to power you through the afternoon.",
+        ingredients: [
+            { item: "Chicken breast, diced", quantity: 1, unit: "lb" },
+            { item: "Quinoa, dry", quantity: 1, unit: "cup" },
+            { item: "Black beans, rinsed", quantity: 1, unit: "can" },
+            { item: "Corn, frozen or canned", quantity: 1, unit: "cup" },
+            { item: "Bell pepper, diced", quantity: 1, unit: "" },
+            { item: "Red onion, diced", quantity: 0.5, unit: "" },
+            { item: "Cilantro, chopped", quantity: 0.5, unit: "cup" },
+            { item: "Lime", quantity: 1, unit: "" },
+            { item: "Olive oil", quantity: 1, unit: "tbsp" },
+            { item: "Chili powder", quantity: 1, unit: "tbsp" },
+            { item: "Cumin", quantity: 1, unit: "tsp" }
+        ],
+        instructions: [
+            "Cook quinoa according to package directions. Fluff with a fork.",
+            "While quinoa cooks, heat olive oil in a skillet. Add chicken, chili powder, and cumin. Cook until browned and cooked through.",
+            "In a large bowl, combine the cooked quinoa, cooked chicken, black beans, corn, bell pepper, red onion, and cilantro.",
+            "Squeeze lime juice over the top and toss to combine. Portion into four containers."
+        ],
+        nutrition: { calories: 450, protein: 35, carbs: 50, fat: 12 }
+    },
+    {
+        id: 4,
+        title: "Mediterranean Chickpea Salad Jars",
+        category: "Lunch",
+        imageSrc: "https://placehold.co/500x700/FAEDCD/3A5A40?text=Chickpea+Salad+Jars",
+        prepTime: 15, cookTime: 0, servings: 4,
+        description: "A refreshing, no-cook lunch that's packed with flavor and fiber.",
+        ingredients: [
+            { item: "Chickpeas, rinsed", quantity: 2, unit: "cans" },
+            { item: "Cucumber, diced", quantity: 1, unit: "large" },
+            { item: "Cherry tomatoes, halved", quantity: 1, unit: "pint" },
+            { item: "Red onion, thinly sliced", quantity: 0.5, unit: "" },
+            { item: "Kalamata olives, halved", quantity: 0.5, unit: "cup" },
+            { item: "Feta cheese, crumbled", quantity: 1, unit: "cup" },
+            { item: "Fresh parsley, chopped", quantity: 0.5, unit: "cup" },
+            { item: "Lemon juice", quantity: 0.25, unit: "cup" },
+            { item: "Olive oil", quantity: 3, unit: "tbsp" },
+            { item: "Dried oregano", quantity: 1, unit: "tsp" }
+        ],
+        instructions: [
+            "Prepare the dressing: In a small bowl, whisk together lemon juice, olive oil, and oregano.",
+            "Layer in four large jars: Start with 1/4 of the dressing in the bottom of each jar. Then layer the red onion, chickpeas, tomatoes, cucumber, olives, parsley, and finally feta cheese.",
+            "Seal tightly and store in the fridge. When ready to eat, shake the jar well and pour into a bowl."
+        ],
+        nutrition: { calories: 420, protein: 15, carbs: 35, fat: 25 }
+    },
+    {
+        id: 5,
+        title: "Sheet Pan Lemon Herb Salmon",
+        category: "Dinner",
+        imageSrc: "https://placehold.co/500x700/E9D8A6/3A5A40?text=Sheet+Pan+Salmon",
+        prepTime: 10, cookTime: 15, servings: 4,
+        description: "An elegant and incredibly easy dinner with minimal cleanup.",
+        ingredients: [
+            { item: "Salmon fillets", quantity: 4, unit: "(6oz each)" },
+            { item: "Asparagus, trimmed", quantity: 1, unit: "bunch" },
+            { item: "Cherry tomatoes", quantity: 1, unit: "pint" },
+            { item: "Lemon, thinly sliced", quantity: 1, unit: "" },
+            { item: "Olive oil", quantity: 2, unit: "tbsp" },
+            { item: "Dried dill", quantity: 1, unit: "tsp" },
+            { item: "Garlic powder", quantity: 1, unit: "tsp" }
+        ],
+        instructions: [
+            "Preheat oven to 400°F (200°C).",
+            "On a large baking sheet, toss asparagus and cherry tomatoes with 1 tbsp olive oil, salt, and pepper.",
+            "Place salmon fillets on the sheet pan. Drizzle with remaining olive oil. Sprinkle with dill, garlic powder, salt, and pepper. Top each fillet with lemon slices.",
+            "Bake for 12-15 minutes, or until salmon is cooked through and flakes easily. Portion into containers."
+        ],
+        nutrition: { calories: 480, protein: 40, carbs: 10, fat: 30 }
+    },
+    {
+        id: 6,
+        title: "No-Bake Energy Bites",
+        category: "Snack",
+        imageSrc: "https://placehold.co/500x700/D4A373/3A5A40?text=Energy+Bites",
+        prepTime: 10, cookTime: 0, servings: 12,
+        description: "The perfect healthy snack to beat the 3 PM slump.",
+        ingredients: [
+            { item: "Rolled oats", quantity: 1, unit: "cup" },
+            { item: "Peanut butter", quantity: 0.5, unit: "cup" },
+            { item: "Honey or maple syrup", quantity: 0.33, unit: "cup" },
+            { item: "Chia seeds", quantity: 2, unit: "tbsp" },
+            { item: "Mini chocolate chips", quantity: 0.25, unit: "cup" }
+        ],
+        instructions: [
+            "In a medium bowl, combine all ingredients and mix well.",
+            "Chill the mixture in the refrigerator for 15-30 minutes to make it easier to handle.",
+            "Roll the mixture into 1-inch balls. Store in an airtight container in the refrigerator."
+        ],
+        nutrition: { calories: 150, protein: 4, carbs: 18, fat: 8 }
+    }
+];
+
+let currentFilter = 'all';
+let weeklyPlan = [];
+let nutritionChart;
+
+const recipeGrid = document.getElementById('recipe-grid');
+const planItemsContainer = document.getElementById('plan-items');
+const modalBackdrop = document.getElementById('modal-backdrop');
+const recipeModal = document.getElementById('recipe-modal');
+const modalContent = document.getElementById('modal-content');
+const shoppingListContainer = document.getElementById('shopping-list-container');
+
+function renderRecipes() {
+    recipeGrid.innerHTML = '';
+    const filteredRecipes = recipes.filter(recipe => currentFilter === 'all' || recipe.category === currentFilter);
+    
+    filteredRecipes.forEach(recipe => {
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-lg shadow-md overflow-hidden transform hover:-translate-y-2 transition-transform duration-300 cursor-pointer';
+        card.innerHTML = `
+            <img src="${recipe.imageSrc}" alt="${recipe.title}" class="w-full h-48 object-cover" onclick="showRecipeModal(${recipe.id})">
+            <div class="p-6">
+                <h4 class="text-xl font-bold text-primary-dark">${recipe.title}</h4>
+                <div class="flex justify-between text-sm text-gray-600 my-4">
+                    <span>🕒 ${recipe.prepTime} min prep</span>
+                    <span>🔥 ${recipe.nutrition.calories} kcal</span>
+                </div>
+                <button class="btn btn-primary w-full" onclick="addToPlan(${recipe.id})">Add to Plan</button>
+            </div>
+        `;
+        recipeGrid.appendChild(card);
+    });
+}
+
+function filterRecipes(category) {
+    currentFilter = category;
+    const buttons = document.querySelectorAll('#filter-buttons button');
+    buttons.forEach(button => {
+        if (button.innerText.toLowerCase() === category.toLowerCase()) {
+            button.classList.replace('btn-secondary', 'btn-primary');
+        } else {
+            button.classList.replace('btn-primary', 'btn-secondary');
+        }
+    });
+    renderRecipes();
+}
+
+function showRecipeModal(recipeId) {
+    const recipe = recipes.find(r => r.id === recipeId);
+    if (!recipe) return;
+
+    modalContent.innerHTML = `
+        <h3 class="text-3xl font-bold text-primary-dark mb-4">${recipe.title}</h3>
+        <p class="text-gray-600 italic mb-6">${recipe.description}</p>
+        <div class="flex justify-around text-center border-t border-b border-gray-200 py-4 mb-6">
+            <div><span class="font-bold block">Prep</span>${recipe.prepTime} min</div>
+            <div><span class="font-bold block">Cook</span>${recipe.cookTime} min</div>
+            <div><span class="font-bold block">Servings</span>${recipe.servings}</div>
+            <div><span class="font-bold block">Calories</span>${recipe.nutrition.calories}</div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+                <h4 class="text-xl font-bold text-primary-dark mb-2">Ingredients</h4>
+                <ul class="list-disc pl-5 text-gray-700">
+                    ${recipe.ingredients.map(ing => `<li>${ing.quantity} ${ing.unit} ${ing.item}</li>`).join('')}
+                </ul>
+            </div>
+            <div>
+                <h4 class="text-xl font-bold text-primary-dark mb-2">Instructions</h4>
+                <ol class="list-decimal pl-5 text-gray-700 space-y-2">
+                    ${recipe.instructions.map(inst => `<li>${inst}</li>`).join('')}
+                </ol>
+            </div>
+        </div>
+        <button class="btn btn-secondary mt-8 float-right" onclick="closeModal()">Close</button>
+    `;
+
+    modalBackdrop.style.display = 'block';
+    recipeModal.style.display = 'block';
+}
+
+function closeModal() {
+    modalBackdrop.style.display = 'none';
+    recipeModal.style.display = 'none';
+}
+
+function addToPlan(recipeId) {
+    const recipe = recipes.find(r => r.id === recipeId);
+    if (recipe) {
+        weeklyPlan.push(recipe);
+        renderPlan();
+    }
+}
+
+function removeFromPlan(index) {
+    weeklyPlan.splice(index, 1);
+    renderPlan();
+}
+
+function renderPlan() {
+    if (weeklyPlan.length === 0) {
+        planItemsContainer.innerHTML = '<p class="text-gray-500 italic">Your plan is empty. Add recipes from the explorer above!</p>';
+    } else {
+        planItemsContainer.innerHTML = weeklyPlan.map((recipe, index) => `
+            <div class="flex justify-between items-center bg-white p-3 rounded-md shadow-sm">
+                <span class="font-bold text-primary-dark">${recipe.title}</span>
+                <button class="text-red-500 hover:text-red-700 font-bold" onclick="removeFromPlan(${index})">Remove</button>
+            </div>
+        `).join('');
+    }
+    updateNutritionChart();
+}
+
+function updateNutritionChart() {
+    const ctx = document.getElementById('nutrition-chart').getContext('2d');
+    
+    let totalProtein = 0, totalCarbs = 0, totalFat = 0;
+    
+    if (weeklyPlan.length > 0) {
+        weeklyPlan.forEach(recipe => {
+            totalProtein += recipe.nutrition.protein;
+            totalCarbs += recipe.nutrition.carbs;
+            totalFat += recipe.nutrition.fat;
+        });
+
+        const totalMacros = totalProtein + totalCarbs + totalFat;
+        
+        const data = {
+            labels: [
+                `Protein (${Math.round((totalProtein/totalMacros)*100)}%)`,
+                `Carbs (${Math.round((totalCarbs/totalMacros)*100)}%)`,
+                `Fat (${Math.round((totalFat/totalMacros)*100)}%)`
+            ],
+            datasets: [{
+                data: [totalProtein, totalCarbs, totalFat],
+                backgroundColor: ['#3A5A40', '#D4A373', '#CCD5AE'],
+                hoverOffset: 4
+            }]
+        };
+
+        if (nutritionChart) {
+            nutritionChart.data = data;
+            nutritionChart.update();
+        } else {
+            nutritionChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+    } else {
+       if (nutritionChart) {
+           nutritionChart.destroy();
+           nutritionChart = null;
+       }
+    }
+}
+
+function generateShoppingList() {
+    if (weeklyPlan.length === 0) {
+        shoppingListContainer.innerHTML = '<p class="text-red-500 italic">Your plan is empty. Please add at least one recipe to generate a shopping list.</p>';
+        return;
+    }
+    const consolidatedList = {};
+    weeklyPlan.forEach(recipe => {
+        recipe.ingredients.forEach(ing => {
+            if(consolidatedList[ing.item]) {
+                 consolidatedList[ing.item].quantity += ing.quantity;
+            } else {
+                consolidatedList[ing.item] = { ...ing };
+            }
+        });
+    });
+
+    const listHtml = Object.values(consolidatedList).map(ing => `
+        <div class="flex items-center py-2 border-b">
+            <input type="checkbox" class="h-5 w-5 rounded border-gray-300 text-primary-dark focus:ring-primary-accent mr-4">
+            <label>${ing.quantity} ${ing.unit} ${ing.item}</label>
+        </div>
+    `).join('');
+
+    shoppingListContainer.innerHTML = `<h4 class="text-xl font-bold mb-4">Your Items:</h4>${listHtml}`;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    renderRecipes();
+    renderPlan();
+});
+</script>
+
+</body>
+</html>
+```
